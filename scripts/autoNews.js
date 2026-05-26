@@ -89,23 +89,35 @@ CONTENIDO:
 function createSlug(text) {
   return text
     .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')
+}
+
+function cleanText(text) {
+  return text
+    .replace(/"/g, "'")
+    .replace(/:/g, '')
+    .replace(/\n/g, ' ')
+    .trim()
 }
 
 async function savePost(aiText) {
   const titleMatch = aiText.match(/TITULO:\s*(.*)/)
   const contentMatch = aiText.match(/CONTENIDO:\s*([\s\S]*)/)
 
-  const title = titleMatch?.[1]?.trim() || 'Noticia Barcelona'
+  const rawTitle = titleMatch?.[1]?.trim() || 'Noticia Barcelona'
   const content = contentMatch?.[1]?.trim() || 'Sin contenido.'
+
+  const title = cleanText(rawTitle)
 
   const slug = createSlug(title)
 
   const today = new Date().toISOString().split('T')[0]
 
   const mdx = `---
-title: "${title}"
+title: '${title}'
 date: '${today}'
 tags: ['Barcelona', 'LaLiga']
 draft: false
