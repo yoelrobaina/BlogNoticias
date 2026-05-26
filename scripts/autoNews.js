@@ -4,13 +4,40 @@ import path from 'path'
 const GNEWS_API_KEY = process.env.GNEWS_API_KEY
 const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY
 
+const publishedFilePath = path.join(process.cwd(), 'published.json')
+
+function getPublishedUrls() {
+  if (!fs.existsSync(publishedFilePath)) {
+    fs.writeFileSync(publishedFilePath, '[]')
+  }
+
+  const data = fs.readFileSync(publishedFilePath, 'utf8')
+  return JSON.parse(data)
+}
+
+function savePublishedUrl(url) {
+  const urls = getPublishedUrls()
+
+  urls.push(url)
+
+  fs.writeFileSync(publishedFilePath, JSON.stringify(urls, null, 2))
+}
+
 async function getBarcelonaNews() {
-  const url = `https://gnews.io/api/v4/search?q=FC%20Barcelona&lang=es&max=1&apikey=${GNEWS_API_KEY}`
+  const publishedUrls = getPublishedUrls()
+
+  const url = `https://gnews.io/api/v4/search?q=FC%20Barcelona&lang=es&max=10&apikey=${GNEWS_API_KEY}`
 
   const response = await fetch(url)
   const data = await response.json()
 
-  return data.articles?.[0]
+  const articles = data.articles || []
+
+  const newArticle = articles.find(
+    (article) => !publishedUrls.includes(article.url)
+  )
+
+  return newArticle
 }
 
 async function rewriteWithAI(article) {
@@ -136,12 +163,12 @@ ${content}
 
 async function main() {
   try {
-    console.log('🔍 Buscando noticia del Barcelona...')
+    console.log('🔍 Buscando noticia nueva del Barcelona...')
 
     const article = await getBarcelonaNews()
 
     if (!article) {
-      console.log('❌ No se encontraron noticias.')
+      console.log('⚠️ No hay noticias nuevas.')
       return
     }
 
@@ -152,6 +179,8 @@ async function main() {
     console.log('💾 Guardando noticia...')
 
     await savePost(aiText)
+
+    savePublishedUrl(article.url)
 
     console.log('🚀 Todo listo.')
   } catch (error) {
