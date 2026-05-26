@@ -1,0 +1,39 @@
+name: Auto News
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'
+  
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clonar repo
+        uses: actions/checkout@v4
+
+      - name: Instalar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias
+        run: yarn install
+
+      - name: Ejecutar script
+        run: node scripts/autoNews.js
+        env:
+          GNEWS_API_KEY: ${{ secrets.GNEWS_API_KEY }}
+
+      - name: Commit y Push
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+
+          git add .
+
+          git commit -m "Nueva noticia automática" || echo "No changes"
+
+          git push
