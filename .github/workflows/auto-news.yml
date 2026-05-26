@@ -1,0 +1,43 @@
+name: Auto Barcelona News
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias
+        run: yarn install
+
+      - name: Ejecutar script IA
+        run: node scripts/autoNews.js
+        env:
+          GNEWS_API_KEY: ${{ secrets.GNEWS_API_KEY }}
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+
+      - name: Commit y Push automático
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+
+          git add .
+
+          git commit -m "Nueva noticia automática del Barcelona" || echo "No hay cambios"
+
+          git push
