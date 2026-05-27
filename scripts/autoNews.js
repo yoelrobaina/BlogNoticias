@@ -18,9 +18,10 @@ function getPublishedUrls() {
 function savePublishedUrl(url) {
   const urls = getPublishedUrls()
 
-  urls.push(url)
-
-  fs.writeFileSync(publishedFilePath, JSON.stringify(urls, null, 2))
+  if (!urls.includes(url)) {
+    urls.push(url)
+    fs.writeFileSync(publishedFilePath, JSON.stringify(urls, null, 2))
+  }
 }
 
 async function getBarcelonaNews() {
@@ -42,13 +43,13 @@ async function getBarcelonaNews() {
 
 async function rewriteWithAI(article) {
   const originalText = `
-Título: ${article.title}
+Título: ${article.title || ''}
 
 Descripción:
-${article.description}
+${article.description || ''}
 
 Contenido:
-${article.content}
+${article.content || ''}
 `
 
   const prompt = `
@@ -86,25 +87,30 @@ CONTENIDO:
 (contenido aquí en markdown)
 `
 
-  const response = await fetch('https://api.minimax.io/v1/text/chatcompletion_v2', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${MINIMAX_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'MiniMax-Text-01',
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      temperature: 0.7,
-    }),
-  })
+  const response = await fetch(
+    'https://api.minimax.io/v1/text/chatcompletion_v2',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${MINIMAX_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'MiniMax-Text-01',
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.7,
+      }),
+    }
+  )
 
   const data = await response.json()
+
+  console.log('📦 Respuesta MiniMax:', JSON.stringify(data, null, 2))
 
   const text =
     data?.choices?.[0]?.message?.content ||
@@ -120,6 +126,8 @@ function createSlug(text) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim()
 }
 
 function cleanText(text) {
@@ -127,6 +135,8 @@ function cleanText(text) {
     .replace(/"/g, "'")
     .replace(/:/g, '')
     .replace(/\n/g, ' ')
+    .replace(/\r/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
 }
 
@@ -135,28 +145,34 @@ async function savePost(aiText) {
   const contentMatch = aiText.match(/CONTENIDO:\s*([\s\S]*)/)
 
   const rawTitle = titleMatch?.[1]?.trim() || 'Noticia Barcelona'
-  const content = contentMatch?.[1]?.trim() || 'Sin contenido.'
+  const rawContent = contentMatch?.[1]?.trim() || 'Sin contenido.'
 
   const title = cleanText(rawTitle)
+  const content = rawContent.trim()
 
   const slug = createSlug(title)
 
   const today = new Date().toISOString().split('T')[0]
 
   const mdx = `---
-title: '${title}'
+title: ${JSON.stringify(title)}
 date: '${today}'
 tags: ['Barcelona', 'LaLiga']
 draft: false
-summary: '${title}'
+summary: ${JSON.stringify(title)}
 ---
 
 ${content}
 `
 
-  const filePath = path.join(process.cwd(), 'data', 'blog', `${slug}.mdx`)
+  const filePath = path.join(
+    process.cwd(),
+    'data',
+    'blog',
+    `${slug}.mdx`
+  )
 
-  fs.writeFileSync(filePath, mdx)
+  fs.writeFileSync(filePath, mdx, 'utf8')
 
   console.log('✅ Noticia creada:', filePath)
 }
@@ -172,6 +188,9 @@ async function main() {
       return
     }
 
+    console.log('📰 Noticia encontrada:')
+    console.log(article.title)
+
     console.log('🤖 Reescribiendo con IA...')
 
     const aiText = await rewriteWithAI(article)
@@ -184,7 +203,8 @@ async function main() {
 
     console.log('🚀 Todo listo.')
   } catch (error) {
-    console.error('❌ Error:', error)
+    console.error('❌ Error completo:')
+    console.error(error)
   }
 }
 
